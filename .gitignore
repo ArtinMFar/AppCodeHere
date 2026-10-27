@@ -1,0 +1,14 @@
+.gradle/
+build/
+/local.properties
+/.idea/
+*.iml
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+/dist/*.jar
+/release-keystore.jks
+# APK signing keys must never be committed (the repository is public).
+*.jks
+*.keystore

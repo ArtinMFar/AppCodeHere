@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two interlocking rings (Colab-like "CO") with a small plug, on a 108dp adaptive canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:strokeColor="@color/ic_amber" android:strokeWidth="8" android:fillColor="#00000000"
+        android:pathData="M48,40 A16,16 0 1,0 48,68" />
+    <path android:strokeColor="@color/ic_orange" android:strokeWidth="8" android:fillColor="#00000000"
+        android:pathData="M60,54 m-14,0 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M57,50h6v8h-6z" />
+</vector>
