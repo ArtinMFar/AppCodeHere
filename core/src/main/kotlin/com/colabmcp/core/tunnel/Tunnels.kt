@@ -146,9 +146,9 @@ class SshTunnel(
         TunnelType.LOCALHOST_RUN -> Target("nokey", "localhost.run", 22, "", 80, Regex("https://[a-z0-9-]+\\.lhr\\.(life|rocks|pro)"))
         TunnelType.SERVEO -> Target("colab-mcp", "serveo.net", 22, subdomain?.takeIf { it.isNotBlank() } ?: "", 80, Regex("(?<=Forwarding HTTP traffic from )https://\\S+"))
         TunnelType.PINGGY -> if (token.isNullOrBlank()) {
-            Target("free", "free.pinggy.io", 443, "", 0, Regex("https://[a-z0-9.-]+\\.pinggy\\.(link|online)"))
+            Target("free", "free.pinggy.io", 443, "", 0, Regex("https://[a-z0-9.-]+\\.(pinggy\\.(link|online|net)|pinggy-free\\.link)"))
         } else {
-            Target(token, "pro.pinggy.io", 443, "", 0, Regex("https://[a-z0-9.-]+\\.pinggy\\.(link|online)"))
+            Target(token, "pro.pinggy.io", 443, "", 0, Regex("https://[a-z0-9.-]+\\.(pinggy\\.(link|online|net)|pinggy-free\\.link)"))
         }
         else -> throw IllegalArgumentException("Not an SSH tunnel: $type")
     }
@@ -204,7 +204,27 @@ class SshTunnel(
         val ch = s.openChannel("shell") as ChannelShell
         ch.setPty(false)
         val input = ch.inputStream
-        ch.connect(15_000)
+        // Use connect() without a timeout: with a timeout JSch waits for the reply to the shell
+        // request, which localhost.run never sends ("channel request: timeout"). A separate
+        // watchdog keeps a silent server from blocking the supervisor forever.
+        val connected = CountDownLatch(1)
+        var connectError: Exception? = null
+        Thread({
+            try {
+                ch.connect()
+            } catch (e: Exception) {
+                connectError = e
+            }
+            connected.countDown()
+        }, "ssh-channel-connect").apply { isDaemon = true }.start()
+        if (!connected.await(30, TimeUnit.SECONDS)) {
+            stop()
+            throw TunnelException("${t.host} did not open the session channel in time.")
+        }
+        connectError?.let {
+            stop()
+            throw it
+        }
         channel = ch
         val buf = StringBuilder()
         val deadline = System.currentTimeMillis() + 40_000

@@ -20,7 +20,7 @@ Gemini ──HTTPS──▶ tunnel (ngrok / localhost.run / serveo / pinggy / yo
 
 ## Install
 
-Download `dist/ColabMcpBridge-1.0.0-universal.apk` on the phone and install it (allow "install unknown apps").
+Download `dist/ColabMcpBridge-1.0.1-universal.apk` on the phone and install it (allow "install unknown apps").
 Android 8.0+.
 
 ## Set up
@@ -110,6 +110,8 @@ different key requires uninstalling the old one first.
 
 ## Notes & limitations
 
+* The localhost.run, serveo and Pinggy tunnels were verified end to end (OAuth + MCP tool calls over the public URL)
+  by running the bridge on a Colab VM. ngrok needs an account token and has not been tested live yet.
 * The ngrok tunnel uses ngrok-java's native library, available for ARM phones (arm64-v8a, armeabi-v7a). On x86
   devices or phones with 16 KB memory pages, use another tunnel.
 * Browser-only Colab features (`google.colab.output` widgets, `files.download`) are not available headless; Drive

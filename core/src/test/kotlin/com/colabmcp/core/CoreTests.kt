@@ -54,6 +54,10 @@ class TunnelUrlTest {
     fun pinggyIgnoresDashboard() {
         val banner = "You are not authenticated. Upgrade at https://dashboard.pinggy.io\nhttp://rnabc-1-2-3-4.a.free.pinggy.link\nhttps://rnabc-1-2-3-4.a.free.pinggy.link\n"
         assertEquals("https://rnabc-1-2-3-4.a.free.pinggy.link", SshTunnel.findUrl(TunnelType.PINGGY, banner))
+        // Current free domains (seen live in October 2026).
+        val current = "You are not authenticated. Your tunnel will expire in 60 minutes. Upgrade to Pinggy Pro to get unrestricted tunnels. " +
+            "https://dashboard.pinggy.io https://efero-136-70-235-187.free.pinggy.net https://rfvul-136-70-235-187.run.pinggy-free.link"
+        assertEquals("https://efero-136-70-235-187.free.pinggy.net", SshTunnel.findUrl(TunnelType.PINGGY, current))
     }
 }
 

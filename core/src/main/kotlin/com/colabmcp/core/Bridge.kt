@@ -59,7 +59,7 @@ class Bridge(
     val config: BridgeConfig,
 ) {
     companion object {
-        const val VERSION = "1.0.0"
+        const val VERSION = "1.0.1"
         private const val TAG = "Bridge"
     }
 
