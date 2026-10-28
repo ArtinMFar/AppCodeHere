@@ -114,6 +114,13 @@ class NgrokTunnel(private val authtoken: String, private val domain: String?) : 
     /** Turns ngrok's error codes into instructions the user can act on. */
     private fun explain(e: Exception): String {
         val raw = (e.message ?: e.javaClass.simpleName).trim()
+        if (raw.contains("runtime not initialized")) {
+            // The native library failed to load (ngrok-java hides the cause); report the real one.
+            val cause = runCatching {
+                Class.forName("com.ngrok.Runtime").getDeclaredField("loadError").apply { isAccessible = true }.get(null) as Throwable?
+            }.getOrNull()
+            return "ngrok's native library could not start on this device${cause?.let { ": ${it.message}" } ?: ""}. Choose another tunnel."
+        }
         val code = Regex("ERR_NGROK_\\d+").find(raw)?.value
         val hint = when (code) {
             "ERR_NGROK_15013" -> "Your ngrok account has no free dev domain yet. Open dashboard.ngrok.com/domains and create it (free); the app retries automatically."

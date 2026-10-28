@@ -3,7 +3,8 @@
  *
  * The upstream class copies libngrok_java.so out of the jar into java.io.tmpdir before
  * loading it, which cannot pick the right ABI when several Android natives are bundled.
- * This version loads the library that Gradle packaged into the APK's jniLibs instead.
+ * This version loads the library that Gradle packaged into the APK's jniLibs instead (with
+ * JNI_OnLoad patched to return JNI_VERSION_1_6, see app/build.gradle.kts).
  * The JNI-facing API (load, init, getLogger, Logger.getLevel/log) is unchanged.
  */
 package com.ngrok;
@@ -18,8 +19,16 @@ class Runtime {
         return LOGGER;
     }
 
+    /** NativeSession swallows load failures; keep the cause so the app can report it. */
+    static volatile Throwable loadError;
+
     public static void load() {
-        System.loadLibrary("ngrok_java");
+        try {
+            System.loadLibrary("ngrok_java");
+        } catch (Throwable t) {
+            loadError = t;
+            throw t;
+        }
     }
 
     static native void init(Logger logger);

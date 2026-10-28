@@ -19,6 +19,29 @@ dependencies {
 }
 
 val ngrokJniDir = layout.buildDirectory.dir("generated/ngrok/jniLibs")
+
+/**
+ * ngrok-java's JNI_OnLoad returns JNI_VERSION_1_8 (0x10008). Desktop JVMs accept that, but
+ * Android only accepts 1.2/1.4/1.6, so System.loadLibrary fails, Runtime.init never runs and
+ * every connect panics with "runtime not initialized". The library uses no 1.8-only JNI
+ * functions, so its JNI_OnLoad is patched to return JNI_VERSION_1_6 (0x10006).
+ */
+fun patchJniOnLoadVersion(lib: File, abi: String) {
+    fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+    val (pattern, replacement) = when (abi) {
+        // movz w0, #0x8 ; movk w0, #0x1, lsl #16  ->  movz w0, #0x6 ; ...
+        "arm64-v8a" -> hex("000180522000a072") to hex("c00080522000a072")
+        // movs r0, #8 ; movt r0, #1 ; pop {r7, pc}  ->  movs r0, #6 ; ...
+        "armeabi-v7a" -> hex("0820c0f2010080bd") to hex("0620c0f2010080bd")
+        else -> error("No JNI_OnLoad patch for $abi")
+    }
+    val bytes = lib.readBytes()
+    val hits = (0..bytes.size - pattern.size).filter { i -> pattern.indices.all { bytes[i + it] == pattern[it] } }
+    check(hits.size == 1) { "Expected the JNI_OnLoad version constant exactly once in $abi/libngrok_java.so, found ${hits.size}" }
+    replacement.copyInto(bytes, hits[0])
+    lib.writeBytes(bytes)
+}
+
 val extractNgrokNatives by tasks.registering {
     inputs.files(ngrokNatives)
     outputs.dir(ngrokJniDir)
@@ -35,6 +58,7 @@ val extractNgrokNatives by tasks.registering {
                 from(zipTree(jar)) { include("libngrok_java.so") }
                 into(File(out, abi))
             }
+            patchJniOnLoadVersion(File(out, "$abi/libngrok_java.so"), abi)
         }
     }
 }
@@ -44,6 +68,8 @@ val ngrokClassesJar by tasks.registering(Jar::class) {
     destinationDirectory.set(layout.buildDirectory.dir("generated/ngrok"))
     from({ ngrokClasses.files.map { zipTree(it) } }) {
         include("com/ngrok/**/*.class")
+        // NativeSession reads agent.version from here and reports it to ngrok.
+        include("native.properties")
         exclude("com/ngrok/Runtime.class", "com/ngrok/Runtime$*.class")
     }
 }
@@ -56,8 +82,8 @@ android {
         applicationId = "com.colabmcp.bridge"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
@@ -117,7 +143,7 @@ android {
         resources {
             excludes += setOf(
                 "META-INF/*.kotlin_module", "META-INF/versions/9/module-info.class", "module-info.class",
-                "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES", "native.properties", "libngrok_java.so",
+                "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES", "libngrok_java.so",
             )
         }
     }
