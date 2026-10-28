@@ -397,8 +397,8 @@ private fun TunnelCard(a: MainActivity, status: BridgeStatus?) {
                     visualTransformation = if (showToken) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = { TextButton(onClick = { showToken = !showToken }) { Text(if (showToken) "Hide" else "Show") } },
                 )
-                OutlinedTextField(ngrokDomain, { ngrokDomain = it; dirty = true }, label = { Text("Static domain (optional), e.g. name.ngrok-free.app") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Muted("Free: sign up at ngrok.com, copy your authtoken, and claim your free static domain so the MCP link never changes.")
+                OutlinedTextField(ngrokDomain, { ngrokDomain = it; dirty = true }, label = { Text("Domain (optional), e.g. name.ngrok-free.app") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Muted("Free: sign up at ngrok.com, copy your authtoken, and create your free dev domain once under Domains (required). Leave the domain field empty to use it; the MCP link then never changes.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { a.openUrl("https://dashboard.ngrok.com/get-started/your-authtoken") }) { Text("Get authtoken") }
                     TextButton(onClick = { a.openUrl("https://dashboard.ngrok.com/domains") }) { Text("Get free domain") }

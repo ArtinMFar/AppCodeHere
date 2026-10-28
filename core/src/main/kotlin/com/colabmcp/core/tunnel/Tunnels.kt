@@ -88,11 +88,18 @@ class NgrokTunnel(private val authtoken: String, private val domain: String?) : 
                 .connect()
         } catch (e: LinkageError) {
             throw TunnelException("ngrok is not available on this device's CPU type (${System.getProperty("os.arch")}). Choose another tunnel.")
+        } catch (e: Exception) {
+            throw TunnelException(explain(e))
         }
         session = s
         val builder = s.httpEndpoint()
         if (!domain.isNullOrBlank()) builder.domain(domain)
-        val fwd = builder.forward(URL("http://127.0.0.1:$localPort"))
+        val fwd = try {
+            builder.forward(URL("http://127.0.0.1:$localPort"))
+        } catch (e: Exception) {
+            runCatching { s.close() }
+            throw TunnelException(explain(e))
+        }
         forwarder = fwd
         Thread({
             try {
@@ -102,6 +109,28 @@ class NgrokTunnel(private val authtoken: String, private val domain: String?) : 
             dead.countDown()
         }, "ngrok-join").apply { isDaemon = true }.start()
         return fwd.url.replaceFirst("http://", "https://")
+    }
+
+    /** Turns ngrok's error codes into instructions the user can act on. */
+    private fun explain(e: Exception): String {
+        val raw = (e.message ?: e.javaClass.simpleName).trim()
+        val code = Regex("ERR_NGROK_\\d+").find(raw)?.value
+        val hint = when (code) {
+            "ERR_NGROK_15013" -> "Your ngrok account has no free dev domain yet. Open dashboard.ngrok.com/domains and create it (free); the app retries automatically."
+            "ERR_NGROK_105", "ERR_NGROK_106", "ERR_NGROK_107" -> "The ngrok authtoken is not valid. Copy it again from dashboard.ngrok.com/get-started/your-authtoken."
+            "ERR_NGROK_108" -> "This ngrok account is already online somewhere else (free accounts allow one agent at a time). Stop the other ngrok agent; the app retries automatically."
+            "ERR_NGROK_120", "ERR_NGROK_121" -> "ngrok no longer accepts this app's ngrok library version. Choose another tunnel."
+            else -> if (!domain.isNullOrBlank() && raw.contains("domain", ignoreCase = true)) {
+                "ngrok refused the domain '$domain'. Leave the domain empty to use your account's dev domain, or copy it exactly from dashboard.ngrok.com/domains."
+            } else {
+                null
+            }
+        }
+        return when {
+            hint == null -> raw.take(400)
+            code == null -> hint
+            else -> "$hint ($code)"
+        }
     }
 
     override fun awaitDeath() = dead.await()

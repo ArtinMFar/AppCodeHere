@@ -62,7 +62,9 @@ fun main(args: Array<String>) {
             if (name == null || name == "--all") println("Stopped: ${manager.stopAll()}") else manager.stop(name).also { println("Stopped $name") }
         }
         "serve" -> {
-            val tunnel = TunnelConfig.fromArgs(opt("tunnel") ?: "none", opt("ngrok-token"), opt("domain"), opt("url"))
+            // Tokens can come from the environment so they stay out of process listings and shell history.
+            val token = opt("ngrok-token") ?: System.getenv("NGROK_AUTHTOKEN") ?: System.getenv("PINGGY_TOKEN")
+            val tunnel = TunnelConfig.fromArgs(opt("tunnel") ?: "none", token, opt("domain"), opt("url"))
             val config = BridgeConfig(
                 port = opt("port")?.toInt() ?: 8765,
                 bindAll = rest.contains("--bind-all"),
