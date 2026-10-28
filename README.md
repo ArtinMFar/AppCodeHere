@@ -20,7 +20,7 @@ Gemini ──HTTPS──▶ tunnel (ngrok / localhost.run / serveo / pinggy / yo
 
 ## Install
 
-Download `dist/ColabMcpBridge-1.0.3-universal.apk` on the phone and install it (allow "install unknown apps").
+Download `dist/ColabMcpBridge-1.0.4-universal.apk` on the phone and install it (allow "install unknown apps").
 Android 8.0+.
 
 ## Set up

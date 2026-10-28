@@ -67,6 +67,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Finish a browser sign-in whose token exchange was blocked while the app was in the background.
+        login.finishDeferred(::onLoginResult)
         Graph.refreshAccount()
         Graph.loadClients()
     }
@@ -112,15 +114,17 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent.createChooser(send, subject))
     }
 
+    private fun onLoginResult(result: Result<GoogleAuth.Account>) {
+        result.onSuccess {
+            toast("Signed in as ${it.email}")
+            Graph.refreshAccount()
+            main.post { bringToFront() }
+        }.onFailure { toast(it.message ?: "Sign-in failed") }
+    }
+
     fun signInWithBrowser() {
         try {
-            val url = login.start { result ->
-                result.onSuccess {
-                    toast("Signed in as ${it.email}")
-                    Graph.refreshAccount()
-                    main.post { bringToFront() }
-                }.onFailure { toast(it.message ?: "Sign-in failed") }
-            }
+            val url = login.start(::onLoginResult)
             openUrl(url)
         } catch (e: Exception) {
             toast("Could not start sign-in: ${e.message}")
