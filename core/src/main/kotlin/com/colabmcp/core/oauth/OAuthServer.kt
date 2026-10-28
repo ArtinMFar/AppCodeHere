@@ -303,7 +303,9 @@ class OAuthServer(private val store: SecretStore) {
         return try {
             Http.client.newCall(Request.Builder().url(clientId).header("Accept", "application/json").build()).execute().use { r ->
                 if (!r.isSuccessful) return null
-                val text = r.body?.source()?.readUtf8(64 * 1024L) ?: return null
+                val body = r.body ?: return null
+                if (body.contentLength() > 64 * 1024) return null
+                val text = body.string().takeIf { it.length <= 64 * 1024 } ?: return null
                 val o = parseJsonObject(text)
                 if (o.str("client_id") != clientId) return null
                 val redirects = o.arr("redirect_uris")?.mapNotNull { (it as? JsonPrimitive)?.content }?.filter(::validRedirect) ?: return null

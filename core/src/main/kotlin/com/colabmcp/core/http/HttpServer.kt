@@ -95,12 +95,17 @@ class HttpServer(
     private val sockets = Collections.synchronizedSet(HashSet<Socket>())
     @Volatile var boundPort: Int = port
         private set
+    @Volatile var boundAddress: InetAddress? = null
+        private set
 
     fun start() {
         val ss = ServerSocket()
         ss.reuseAddress = true
-        ss.bind(java.net.InetSocketAddress(if (bindAll) InetAddress.getByName("0.0.0.0") else InetAddress.getLoopbackAddress(), port), 64)
+        // Bind 127.0.0.1 explicitly: on Android InetAddress.getLoopbackAddress() is ::1, and the
+        // tunnels forward to 127.0.0.1 (ngrok then reported ERR_NGROK_3004).
+        ss.bind(java.net.InetSocketAddress(InetAddress.getByName(if (bindAll) "0.0.0.0" else "127.0.0.1"), port), 64)
         boundPort = ss.localPort
+        boundAddress = ss.inetAddress
         server = ss
         val executor = ThreadPoolExecutor(4, 64, 60, TimeUnit.SECONDS, SynchronousQueue()) { r ->
             Thread(r, "http-worker").apply { isDaemon = true }
@@ -171,17 +176,23 @@ class HttpServer(
                     break
                 }
                 val target = parts[1]
-                val path = URLDecoder.decode(target.substringBefore('?'), "UTF-8")
-                val query = if ('?' in target) HttpRequest.parseQuery(target.substringAfter('?')) else emptyMap()
-                val req = HttpRequest(parts[0].uppercase(), path, query, headers, body, remote)
                 val keepAlive = parts[2] == "HTTP/1.1" && headers["connection"]?.equals("close", true) != true
-                val resp = try {
-                    handler.handle(req)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Handler error for ${req.method} ${req.path}", e)
-                    HttpResponse.text(500, "Internal error: ${e.message}")
+                // Always answer: a dropped connection shows up as a vague gateway error in tunnels.
+                val (method, resp) = try {
+                    val path = URLDecoder.decode(target.substringBefore('?'), "UTF-8")
+                    val query = if ('?' in target) HttpRequest.parseQuery(target.substringAfter('?')) else emptyMap()
+                    val req = HttpRequest(parts[0].uppercase(), path, query, headers, body, remote)
+                    req.method to try {
+                        handler.handle(req)
+                    } catch (e: Throwable) {
+                        Log.e(TAG, "Handler error for ${req.method} ${req.path}", e)
+                        HttpResponse.text(500, "Internal error: ${e.javaClass.simpleName}: ${e.message}")
+                    }
+                } catch (e: IllegalArgumentException) {
+                    parts[0] to HttpResponse.text(400, "Malformed request URL")
                 }
-                write(output, resp, keepAlive, head = req.method == "HEAD")
+                Log.d(TAG, "$method ${target.substringBefore('?')} -> ${resp.status}")
+                write(output, resp, keepAlive, head = method == "HEAD")
                 served++
                 if (!keepAlive) break
             }

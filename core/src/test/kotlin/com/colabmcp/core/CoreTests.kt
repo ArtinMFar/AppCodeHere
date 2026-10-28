@@ -93,6 +93,25 @@ class OutputFormatterTest {
     }
 }
 
+class HttpServerBindTest {
+    /** Regression: on Android getLoopbackAddress() is ::1 while tunnels forward to 127.0.0.1. */
+    @Test
+    fun bindsIpv4Loopback() {
+        val server = HttpServer(0, false) { HttpResponse.text(200, "ok") }
+        server.start()
+        try {
+            assertEquals("127.0.0.1", server.boundAddress?.hostAddress)
+            java.net.Socket("127.0.0.1", server.boundPort).use { s ->
+                s.getOutputStream().write("GET /x?bad=%zz HTTP/1.1\r\nHost: a\r\nConnection: close\r\n\r\n".toByteArray())
+                val reply = s.getInputStream().bufferedReader().readText()
+                assertTrue(reply.startsWith("HTTP/1.1 400"), reply)
+            }
+        } finally {
+            server.stop()
+        }
+    }
+}
+
 class OAuthAndHttpTest {
     private val http = OkHttpClient.Builder().followRedirects(false).build()
 
