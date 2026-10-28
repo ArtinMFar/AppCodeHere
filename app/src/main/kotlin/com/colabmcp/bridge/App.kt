@@ -65,6 +65,9 @@ object Graph {
     val logs = MutableStateFlow<List<String>>(emptyList())
     val busy = MutableStateFlow<String?>(null)
 
+    /** Tunnel/server settings were edited while the server runs; they apply on the next start. */
+    val tunnelSettingsChanged = MutableStateFlow(false)
+
     private val logLines = ArrayDeque<String>()
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
 
@@ -112,6 +115,7 @@ object Graph {
     }
 
     fun createBridge(): Bridge {
+        tunnelSettingsChanged.value = false
         val s = settings
         manager.keepAlive = s.keepAlive
         manager.idleStopMinutes = s.idleStopMinutes

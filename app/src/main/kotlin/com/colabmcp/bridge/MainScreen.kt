@@ -259,6 +259,8 @@ private fun ServerCard(a: MainActivity, status: BridgeStatus?) {
             Text(label, fontWeight = FontWeight.Medium)
         }
         tunnel?.message?.takeIf { running && tunnel.state != TunnelStatus.State.ONLINE }?.let { Muted(it) }
+        val pendingRestart by Graph.tunnelSettingsChanged.collectAsStateWithLifecycle()
+        if (running && pendingRestart) ApplyTunnelButton(a)
 
         if (running) {
             Button(
@@ -353,6 +355,8 @@ private fun GeminiHelpCard(a: MainActivity) {
 @Composable
 private fun TunnelCard(a: MainActivity, status: BridgeStatus?) {
     val s = Graph.settings
+    // Every change is saved immediately: LazyColumn disposes off-screen cards, which used to
+    // drop unsaved edits (and a server start read the old, empty settings).
     var type by remember { mutableStateOf(s.tunnelType) }
     var ngrokToken by remember { mutableStateOf(s.ngrokToken) }
     var ngrokDomain by remember { mutableStateOf(s.ngrokDomain) }
@@ -363,26 +367,18 @@ private fun TunnelCard(a: MainActivity, status: BridgeStatus?) {
     var bindAll by remember { mutableStateOf(s.bindAll) }
     var secretUrl by remember { mutableStateOf(s.secretUrl) }
     var showToken by remember { mutableStateOf(false) }
-    var dirty by remember { mutableStateOf(false) }
+    val pendingRestart by Graph.tunnelSettingsChanged.collectAsStateWithLifecycle()
 
-    fun save() {
-        s.tunnelType = type
-        s.ngrokToken = ngrokToken
-        s.ngrokDomain = ngrokDomain
-        s.serveoSubdomain = serveoSub
-        s.pinggyToken = pinggyToken
-        s.customUrl = customUrl
-        s.port = port.toIntOrNull()?.coerceIn(1024, 65535) ?: 8765
-        s.bindAll = bindAll
-        s.secretUrl = secretUrl
-        dirty = false
+    fun changed() {
+        if (Graph.bridge != null) Graph.tunnelSettingsChanged.value = true
     }
 
     Section("Public link (tunnel)") {
-        Muted("Gemini reaches the MCP server on your phone through a public HTTPS tunnel.")
+        Muted("Gemini reaches the MCP server on your phone through a public HTTPS tunnel. Changes are saved automatically.")
+        if (pendingRestart && status?.running == true) ApplyTunnelButton(a)
         TunnelType.entries.forEach { t ->
             Row(
-                Modifier.fillMaxWidth().selectable(selected = type == t, role = Role.RadioButton, onClick = { type = t; dirty = true }),
+                Modifier.fillMaxWidth().selectable(selected = type == t, role = Role.RadioButton, onClick = { type = t; s.tunnelType = t; changed() }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RadioButton(selected = type == t, onClick = null)
@@ -393,11 +389,11 @@ private fun TunnelCard(a: MainActivity, status: BridgeStatus?) {
         when (type) {
             TunnelType.NGROK -> {
                 OutlinedTextField(
-                    ngrokToken, { ngrokToken = it; dirty = true }, label = { Text("ngrok authtoken") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    ngrokToken, { ngrokToken = it; s.ngrokToken = it; changed() }, label = { Text("ngrok authtoken") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                     visualTransformation = if (showToken) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = { TextButton(onClick = { showToken = !showToken }) { Text(if (showToken) "Hide" else "Show") } },
                 )
-                OutlinedTextField(ngrokDomain, { ngrokDomain = it; dirty = true }, label = { Text("Domain (optional), e.g. name.ngrok-free.app") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(ngrokDomain, { ngrokDomain = it; s.ngrokDomain = it; changed() }, label = { Text("Domain (optional), e.g. name.ngrok-free.app") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Muted("Free: sign up at ngrok.com, copy your authtoken, and create your free dev domain once under Domains (required). Leave the domain field empty to use it; the MCP link then never changes.")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { a.openUrl("https://dashboard.ngrok.com/get-started/your-authtoken") }) { Text("Get authtoken") }
@@ -405,34 +401,39 @@ private fun TunnelCard(a: MainActivity, status: BridgeStatus?) {
                 }
             }
             TunnelType.SERVEO -> {
-                OutlinedTextField(serveoSub, { serveoSub = it; dirty = true }, label = { Text("Subdomain (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(serveoSub, { serveoSub = it; s.serveoSubdomain = it; changed() }, label = { Text("Subdomain (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Muted("Without a subdomain the link changes on every connection. Custom subdomains need a one-time key registration link that Serveo shows in the status line.")
             }
             TunnelType.PINGGY -> {
-                OutlinedTextField(pinggyToken, { pinggyToken = it; dirty = true }, label = { Text("Pinggy token (optional, Pro)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(pinggyToken, { pinggyToken = it; s.pinggyToken = it; changed() }, label = { Text("Pinggy token (optional, Pro)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Muted("Free Pinggy links expire after 60 minutes; the app reconnects automatically but the link changes.")
             }
             TunnelType.LOCALHOST_RUN -> Muted("No account needed, but the link changes when the tunnel reconnects.")
             TunnelType.CUSTOM -> {
-                OutlinedTextField(customUrl, { customUrl = it; dirty = true }, label = { Text("Public base URL (https://...)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(customUrl, { customUrl = it; s.customUrl = it; changed() }, label = { Text("Public base URL (https://...)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Muted("Point your own tunnel (cloudflared in Termux, Tailscale Funnel...) at http://127.0.0.1:${port.ifBlank { "8765" }}.")
             }
             TunnelType.NONE -> Muted("Only clients on this phone (or your Wi-Fi if LAN access is on) can connect.")
         }
         HorizontalDivider()
         OutlinedTextField(
-            port, { port = it.filter(Char::isDigit).take(5); dirty = true }, label = { Text("Local port") }, singleLine = true,
+            port,
+            {
+                port = it.filter(Char::isDigit).take(5)
+                port.toIntOrNull()?.takeIf { p -> p in 1024..65535 }?.let { p -> s.port = p; changed() }
+            },
+            label = { Text("Local port") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.width(160.dp),
         )
-        SwitchRow("Allow LAN access", "Listen on all interfaces so devices on your Wi-Fi can connect directly.", bindAll) { bindAll = it; dirty = true }
-        SwitchRow("No-login secret URL", "Also serve MCP on an unguessable URL without OAuth, for clients that cannot sign in. Anyone with that URL controls your Colab.", secretUrl) { secretUrl = it; dirty = true }
-        if (dirty) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { save(); a.toast("Saved") }) { Text("Save") }
-                if (status?.running == true) OutlinedButton(onClick = { save(); a.restartServer() }) { Text("Save & restart") }
-            }
-        }
+        SwitchRow("Allow LAN access", "Listen on all interfaces so devices on your Wi-Fi can connect directly.", bindAll) { bindAll = it; s.bindAll = it; changed() }
+        SwitchRow("No-login secret URL", "Also serve MCP on an unguessable URL without OAuth, for clients that cannot sign in. Anyone with that URL controls your Colab.", secretUrl) { secretUrl = it; s.secretUrl = it; changed() }
+        if (pendingRestart && status?.running == true) ApplyTunnelButton(a)
     }
+}
+
+@Composable
+private fun ApplyTunnelButton(a: MainActivity) {
+    Button(onClick = { a.restartServer() }, modifier = Modifier.fillMaxWidth()) { Text("Apply changes (restart MCP)") }
 }
 
 @Composable

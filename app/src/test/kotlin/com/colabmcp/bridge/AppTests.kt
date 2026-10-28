@@ -2,11 +2,14 @@ package com.colabmcp.bridge
 
 import android.content.Intent
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import com.colabmcp.core.tunnel.TunnelType
 import com.colabmcp.core.util.jsonOf
 import com.colabmcp.core.util.obj
@@ -52,6 +55,28 @@ class MainScreenTest {
         compose.onNodeWithText(TunnelType.NGROK.label).assertExists()
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Keep running in the background"))
         compose.onNodeWithText("Restart after reboot").assertExists()
+    }
+
+    /** Regression: tunnel edits were lost unless a Save button far below was tapped. */
+    @Test
+    fun tunnelSettingsSaveImmediatelyAndSurviveScrolling() {
+        val list = compose.onNode(hasScrollToNodeAction())
+        list.performScrollToNode(hasText(TunnelType.SERVEO.label))
+        compose.onNodeWithText(TunnelType.SERVEO.label).performClick()
+        assertEquals(TunnelType.SERVEO, Graph.settings.tunnelType)
+
+        list.performScrollToNode(hasText(TunnelType.NGROK.label))
+        compose.onNodeWithText(TunnelType.NGROK.label).performClick()
+        list.performScrollToNode(hasText("ngrok authtoken"))
+        compose.onNode(hasSetTextAction() and hasText("ngrok authtoken")).performTextInput("test-token-123")
+        assertEquals("test-token-123", Graph.settings.ngrokToken)
+
+        // Scroll the card away and back: the selection and token must still be there.
+        list.performScrollToNode(hasText("Activity log"))
+        list.performScrollToNode(hasText("Public link (tunnel)"))
+        assertEquals(TunnelType.NGROK, Graph.settings.tunnelType)
+        assertEquals("test-token-123", Graph.settings.tunnelConfig().token)
+        Graph.settings.ngrokToken = ""
     }
 }
 
