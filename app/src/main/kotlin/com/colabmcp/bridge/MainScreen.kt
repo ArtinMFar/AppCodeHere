@@ -334,7 +334,7 @@ private fun GeminiHelpCard(a: MainActivity) {
             """
             1. Tap Start MCP and wait until the status is Online. Copy the MCP link.
             2. In a browser (on this phone or a computer), open gemini.google.com > Settings > Connected Apps (it may be under Personal Intelligence) > Custom apps > Add a custom app.
-            3. Paste the MCP link and tap Next. A page opens asking for the approval code: enter the code shown above and tap Allow.
+            3. Paste the MCP link and tap Next. A page opens asking for the approval code (with ngrok, first tap "Visit Site" on ngrok's warning page): enter the code shown above and tap Allow.
             4. In the Gemini app or web, type @ and pick the app, e.g. "@Colab create a T4 GPU session and show nvidia-smi".
 
             Requirements (Google): personal Google account, 18+, US, English, Keep Activity on. Use the ngrok tunnel with a free static domain so the link never changes; otherwise you must re-add the app whenever the link changes.

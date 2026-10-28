@@ -20,7 +20,7 @@ Gemini ──HTTPS──▶ tunnel (ngrok / localhost.run / serveo / pinggy / yo
 
 ## Install
 
-Download `dist/ColabMcpBridge-1.0.1-universal.apk` on the phone and install it (allow "install unknown apps").
+Download `dist/ColabMcpBridge-1.0.2-universal.apk` on the phone and install it (allow "install unknown apps").
 Android 8.0+.
 
 ## Set up
@@ -36,7 +36,8 @@ Android 8.0+.
    (localhost.run, serveo, Pinggy) work too, but their link changes when they reconnect.
 3. Tap **Start MCP**. When the status is *Online*, copy the **MCP link** (`https://…/mcp`).
 4. In a browser open **gemini.google.com → Settings → Connected Apps** (may be under *Personal Intelligence*)
-   **→ Custom apps → Add a custom app**, paste the link, tap *Next*. A page asks for the **approval code** shown in
+   **→ Custom apps → Add a custom app**, paste the link, tap *Next*. A page (behind ngrok's *Visit Site* warning on
+   free accounts) asks for the **approval code** shown in
    the app (and in the notification); enter it and tap *Allow*.
 5. In Gemini (app or web) type `@` and choose the app, e.g. *"@Colab create a T4 GPU session, check nvidia-smi and
    train a small CNN on MNIST"*.
@@ -111,7 +112,9 @@ different key requires uninstalling the old one first.
 ## Notes & limitations
 
 * The localhost.run, serveo and Pinggy tunnels were verified end to end (OAuth + MCP tool calls over the public URL)
-  by running the bridge on a Colab VM. ngrok needs an account token and has not been tested live yet.
+  by running the bridge on a Colab VM, and so was ngrok (with a free account and its dev domain). ngrok's free
+  plan shows a "You are about to visit…" page in browsers: tap *Visit Site* once on the approval page. Gemini's
+  server-to-server calls are not affected. Free ngrok accounts allow one connection at a time.
 * The ngrok tunnel uses ngrok-java's native library, available for ARM phones (arm64-v8a, armeabi-v7a). On x86
   devices or phones with 16 KB memory pages, use another tunnel.
 * Browser-only Colab features (`google.colab.output` widgets, `files.download`) are not available headless; Drive
